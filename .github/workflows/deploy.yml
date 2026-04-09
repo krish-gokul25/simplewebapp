@@ -1,58 +1,45 @@
-name: "Train and Deploy"
+New-Item -Path "deploy.yml" -ItemType "File" -Value @"
+name: Build and deploy Python app to Azure Web App
 
 on:
   push:
-    branches: [main]
-
-permissions:
-  id-token: write
-  contents: read
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
-  train-and-deploy:
+  build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-
+          python-version: '3.9'
       - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Install Azure ML CLI extension
-        run: az extension add --name ml --yes
-
-      - name: Set MLflow tracking URI
         run: |
-          URI=$(az ml workspace show \
-            --name ${{ secrets.AZURE_ML_WORKSPACE }} \
-            --resource-group ${{ secrets.AZURE_ML_RESOURCE_GROUP }} \
-            --query mlflow_tracking_uri -o tsv)
-          echo "MLFLOW_TRACKING_URI=$URI" >> $GITHUB_ENV
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Zip artifact for deployment
+        run: zip release.zip ./* -r
+      - name: Upload artifact for deployment jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-app
+          path: release.zip
 
-      - name: Train model
-        env:
-          GITHUB_SHA: ${{ github.sha }}
-          AZURE_ML_WORKSPACE: ${{ secrets.AZURE_ML_WORKSPACE }}
-          AZURE_ML_RESOURCE_GROUP: ${{ secrets.AZURE_ML_RESOURCE_GROUP }}
-        run: python train.py
-
-      - name: Show metrics
-        run: cat model/metrics.json
-
-      - name: Deploy to Azure Web App
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: python-app
+      - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          package: .
-          startup-command: "uvicorn app:app --host 0.0.0.0 --port 8000"
+          app-name: 'AZURE_WEBAPP_NAME'
+          publish-profile: \${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: release.zip
+"@
