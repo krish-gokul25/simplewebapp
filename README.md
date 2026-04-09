@@ -5,7 +5,7 @@ A machine learning API that predicts whether a credit card application should be
 ---
 
 ## What Does This Do?
-
+...
 You send applicant details (income, credit score, age, etc.) to a REST API, and it returns:
 
 | Field | Example | Meaning |
