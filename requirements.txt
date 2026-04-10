@@ -5,6 +5,6 @@ azureml-mlflow
 pandas
 numpy
 fastapi
-uvicorn
+uvicorn[standard]
 pydantic
 gunicorn
